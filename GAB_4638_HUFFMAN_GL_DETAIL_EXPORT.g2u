@@ -1,0 +1,392 @@
+﻿Program.Sub.ScreenSU.Start
+Gui.F_PeriodSelect..Create
+Gui.F_PeriodSelect..Caption("Financial Period Selection")
+Gui.F_PeriodSelect..Size(5670,2430)
+Gui.F_PeriodSelect..MinX(0)
+Gui.F_PeriodSelect..MinY(0)
+Gui.F_PeriodSelect..Position(0,0)
+Gui.F_PeriodSelect..BackColor(-2147483633)
+Gui.F_PeriodSelect..MousePointer(0)
+Gui.F_PeriodSelect..Event(UnLoad,Unload)
+Gui.F_PeriodSelect.lbl1.Create(Label,"Period",True,1020,255,0,105,150,True,0,"Arial",9,-2147483633,0)
+Gui.F_PeriodSelect.ddlPeriod.Create(DropDownList)
+Gui.F_PeriodSelect.ddlPeriod.Size(1005,345)
+Gui.F_PeriodSelect.ddlPeriod.Position(165,435)
+Gui.F_PeriodSelect.ddlPeriod.Event(Click,ddlPeriod_Change)
+Gui.F_PeriodSelect.ddlPeriod.FontSize(9)
+Gui.F_PeriodSelect.lbl2.Create(Label,"Year",True,945,255,0,1395,150,True,0,"Arial",9,-2147483633,0)
+Gui.F_PeriodSelect.ddlYear.Create(DropDownList)
+Gui.F_PeriodSelect.ddlYear.Size(1095,345)
+Gui.F_PeriodSelect.ddlYear.Position(1410,435)
+Gui.F_PeriodSelect.ddlYear.FontSize(9)
+Gui.F_PeriodSelect.ddlYear.Event(Click,ddlYear_Change)
+Gui.F_PeriodSelect.frame1.Create(Frame)
+Gui.F_PeriodSelect.frame1.Size(2550,720)
+Gui.F_PeriodSelect.frame1.Position(2730,105)
+Gui.F_PeriodSelect.frame1.Caption("Period Date")
+Gui.F_PeriodSelect.frame1.FontSize(9)
+Gui.F_PeriodSelect.lblPeriod.Create(Label,"Label",True,2280,255,0,135,405,True,0,"Arial",9,-2147483633,0)
+Gui.F_PeriodSelect.lblPeriod.Parent("frame1")
+Gui.F_PeriodSelect.cmdExport.Create(Button)
+Gui.F_PeriodSelect.cmdExport.Size(2355,450)
+Gui.F_PeriodSelect.cmdExport.Position(1335,1125)
+Gui.F_PeriodSelect.cmdExport.Caption("Export GL Detail")
+Gui.F_PeriodSelect.cmdExport.FontSize(9)
+Gui.F_PeriodSelect.cmdExport.Event(Click,cmdExport_Click)
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+V.Local.dCurrentDate.Declare(Date)
+V.Local.i1.Declare
+V.Local.iPeriod.Declare
+V.Local.iYear.Declare
+V.Local.sIcon.Declare
+V.Local.sRet.Declare
+'major changes made on 25 march 2021 after they update to 2020 from 2017. this meant the GL Details table have changed. and i had to make a bunch of changes to the SQL since the column names have changed. i also had to reference the new GL sub tables for addiional information. validated to be working by the customer since it balances out and they are able to import it into the third party site. HUF010-31620211250-0 AAD
+F.ODBC.Connection!conx.OpenConnection(V.Ambient.PDSN,V.Ambient.PUser,V.Ambient.PPass)
+
+F.Intrinsic.String.Concat(V.Caller.GlobalDir,"\ART\gss2.ico",V.Local.sIcon)
+Gui.F_PeriodSelect..Icon(V.Local.sIcon)
+
+'Set the month in dropdownlist
+F.Intrinsic.Control.For(V.Local.i1,1,12,1)
+	Gui.F_PeriodSelect.ddlPeriod.AddItem(V.Local.i1)
+F.Intrinsic.Control.Next(V.Local.i1)
+'Set the year in dropdownlist
+F.Data.Dictionary.CreateFromSQL("Year","conx","select distinct(start_year), start_year from gl_calendar order by start_year",4)
+Gui.F_PeriodSelect.ddlYear.AddItems("Dictionary","Year")
+F.Data.Dictionary.Close("Year")
+F.Intrinsic.Date.GLPeriodFromDate(V.Ambient.Date,V.Local.sRet)
+F.Intrinsic.String.Split(V.Local.sRet,"*!*",V.Local.sRet)
+F.Intrinsic.Math.ConvertToLong(V.Local.sRet(1),V.Local.iYear)
+F.Intrinsic.Math.ConvertToLong(V.Local.sRet(0),V.Local.iPeriod)
+F.Intrinsic.Control.If(V.Local.iPeriod,=,1)
+	Gui.F_PeriodSelect.ddlPeriod.Text("12")
+	F.Intrinsic.Math.Sub(V.Local.iYear,1,V.Local.iYear)
+	Gui.F_PeriodSelect.ddlYear.Text(V.Local.iYear)
+F.Intrinsic.Control.Else
+	F.Intrinsic.Math.Sub(V.Local.iPeriod,1,V.Local.iPeriod)
+	Gui.F_PeriodSelect.ddlPeriod.Text(V.Local.iPeriod)
+	Gui.F_PeriodSelect.ddlYear.Text(V.Local.iYear)
+F.Intrinsic.Control.EndIf
+
+Gui.F_PeriodSelect..Show
+Program.Sub.Main.End
+
+Program.Sub.Unload.Start
+F.ODBC.Connection!conx.Close
+F.Intrinsic.Control.End
+
+Program.Sub.Unload.End
+
+Program.Sub.cmdExport_Click.Start
+V.Local.bCheck.Declare(Boolean,False)
+V.Local.dBegDate.Declare(Date)
+V.Local.dEndDate.Declare(Date)
+V.Local.fAmount.Declare
+V.Local.fPercent.Declare
+V.Local.i1.Declare
+V.Local.i2.Declare
+V.Local.i3.Declare
+V.Local.iCheck.Declare
+V.Local.iIndex.Declare
+V.Local.iPeriod.Declare
+V.Local.iYear.Declare
+V.Local.sAPGL.Declare
+V.Local.sCSVFile.Declare(String,"")
+V.Local.sCSVFilename.Declare
+V.Local.sCSVFilerow.Declare
+V.Local.sDate.Declare
+V.Local.sFileName.Declare
+V.Local.sFilePath.Declare
+V.Local.sFilter.Declare
+V.Local.sFormattedDate.Declare
+V.Local.sFormattedNumber.Declare
+V.Local.sFormattedTime.Declare
+V.Local.sMainAcct.Declare
+V.Local.sPeriod.Declare
+V.Local.sReference.Declare
+V.Local.sRet.Declare
+V.Local.sSheet.Declare
+V.Local.sSQL.Declare
+V.Local.sSubAcct.Declare
+
+'Check if AP GL Account has been setup in company options
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst","select acct_pre as Account from ACCTS_PAY_ACCT where sys = 'AP' and sub_sys = 'PAY'")
+F.Intrinsic.Control.If(V.ODBC.conx!rst.EOF,=,True)
+	'Exit program if AP GL account has not been setup
+	F.Intrinsic.UI.Msgbox("Please setup AP GL account through Company Options (Standard) > Accounts Payable Table Maintenance > Accts Payable","GL Detail Export [APAC]")
+	F.ODBC.conx!rst.Close
+	F.Intrinsic.Control.CallSub(unload)
+F.Intrinsic.Control.Else
+	V.Local.sAPGL.Set(V.ODBC.conx!rst.FieldValTrim!Account)
+F.Intrinsic.Control.EndIf
+F.ODBC.conx!rst.Close
+
+'Check if GL export file storage
+F.Intrinsic.String.Concat(V.Caller.FilesDir,"\GL_DETAIL_EXPORT",V.Local.sFilePath)
+F.Intrinsic.File.DirExists(V.Local.sFilePath,V.Local.bCheck)
+F.Intrinsic.Control.If(V.Local.bCheck,=,False)
+	F.Intrinsic.File.CreateDir(V.Local.sFilePath)
+	F.Intrinsic.String.Concat(V.Caller.FilesDir,"\GL_DETAIL_EXPORT\XML",V.Local.sFilePath)
+	F.Intrinsic.File.CreateDir(V.Local.sFilePath)
+	F.Intrinsic.String.Concat(V.Caller.FilesDir,"\GL_DETAIL_EXPORT\XML\CASH",V.Local.sFilePath)
+	F.Intrinsic.File.CreateDir(V.Local.sFilePath)
+	F.Intrinsic.String.Concat(V.Caller.FilesDir,"\GL_DETAIL_EXPORT\EXCEL",V.Local.sFilePath)
+	F.Intrinsic.File.CreateDir(V.Local.sFilePath)
+	F.Intrinsic.String.Concat(V.Caller.FilesDir,"\GL_DETAIL_EXPORT\EXCEL\CASH",V.Local.sFilePath)
+	F.Intrinsic.File.CreateDir(V.Local.sFilePath)
+	F.Intrinsic.String.Concat(V.Caller.FilesDir,"\GL_DETAIL_EXPORT\EXCEL\NET_CHANGE",V.Local.sFilePath)
+	F.Intrinsic.File.CreateDir(V.Local.sFilePath)
+F.Intrinsic.Control.EndIf
+
+F.Intrinsic.UI.InvokeWaitDialog("Checking for previously exported data","GL Detail Export [APAC]")
+'Check if the selected GL period has been saved before
+V.Local.iPeriod.Set(V.Screen.F_PeriodSelect!ddlPeriod.Text)
+V.Local.iYear.Set(V.Screen.F_PeriodSelect!ddlYear.Text)
+F.Intrinsic.String.Build("{0}\GL_DETAIL_EXPORT\XML\CASH\GLDetail_{1}_{2}.xml",V.Caller.FilesDir,V.Local.iPeriod,V.Local.iYear,V.Local.sFileName)
+F.Intrinsic.File.Exists(V.Local.sFileName,V.Local.bCheck)
+F.Intrinsic.Control.If(V.Local.bCheck,=,True)
+	'Store the saved data into dtSaved
+	F.Data.DataTable.CreateFromXML("dtSaved",V.Local.sFileName,False)
+F.Intrinsic.Control.EndIf
+
+
+F.Intrinsic.UI.ChangeWaitStatus("Loading GL detail data for the selected period")
+'Retrieve the beginning and end date of the period
+F.Intrinsic.String.LPad(V.Local.iPeriod,"0",2,V.Local.sPeriod)
+F.Intrinsic.String.Build("select beg_date, end_date from v_gl_calendar where period = '{0}' and start_year = '{1}'",V.Local.sPeriod.Trim,V.Local.iYear,V.Local.sSQL)
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+V.Local.dBegDate.Set(V.ODBC.conx!rst.FieldVal!beg_date)
+V.Local.dEndDate.Set(V.ODBC.conx!rst.FieldVal!end_date)
+F.ODBC.conx!rst.Close
+
+'Creating dtDetail
+'Cash account
+F.Data.DataTable.CreateFromSQL("dtCashAcct","conx","select gl_cash_acct as Acct from v_cash_account order by gl_cash_acct")
+F.Intrinsic.Control.If(V.DataTable.dtCashAcct.Exists,=,False)
+	F.Intrinsic.UI.Msgbox("Please setup cash account in System Support > Administration > Company Options Standard > Cash Account Maintenance","GL Detail Export [APAC]")
+	F.ODBC.conx!rst.Close
+	F.Intrinsic.Control.CallSub(Unload)
+F.Intrinsic.Control.Else
+	'Load GL detail for every cash account
+	F.Data.DataTable.Create("dtDetail")
+	F.Data.DataTable.AddColumn("dtDetail","Batch","String")
+	F.Data.DataTable.AddColumn("dtDetail","MainAcct","String")
+	F.Data.DataTable.AddColumn("dtDetail","SubAcct","String")
+	F.Data.DataTable.AddColumn("dtDetail","TransDate","Date")
+	F.Data.DataTable.AddColumn("dtDetail","Amount","Float")
+	F.Data.DataTable.AddColumn("dtDetail","Reference","String")
+	'Retrieve GL account posted to cash GL account(s)
+	F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtCashAcct.RowCount--,1)
+		'For GL and AR, get the summarized batch
+				'appl type is the application it comes from 
+'			1 = Accounts Payable 
+'			2 = Accounts Receivable 
+'			3 = Checks 
+'			4 = Inventory Accounting 
+'			5 = General Ledger 
+'			6 = Payroll 
+		'For checks, get the detail 
+		'had to make a bunch of column naming changes in all the SQL since they changed them on GL detail.
+		
+		F.Intrinsic.String.Build("select distinct(Batch) as Batch, left(ltrim(GL_NUMBER),4) as MainAcct, right(rtrim(GL_NUMBER),3) as SubAcct, post_date_sql as TransDate, convert(sum(amount_cmpny),sql_float) as Amount, 'Batch: '+Batch as Reference from v_gl_detail where GL_NUMBER = '{2}' and post_date_sql between '{0}' and '{1}' and appl_type <> 3 group by GL_NUMBER, post_date_sql, Batch order by post_date_sql, Batch",V.Local.dBegDate.PervasiveDate,V.Local.dEndDate.PervasiveDate,V.DataTable.dtCashAcct(V.Local.i1).Acct!FieldValTrim,V.Local.sSQL)
+		F.Data.DataTable.CreateFromSQL("dtTemp","conx",V.Local.sSQL)
+		F.Intrinsic.Control.If(V.DataTable.dtTemp.RowCount,>,0)
+			F.Data.DataTable.Merge("dtTemp","dtDetail",True,1)
+		F.Intrinsic.Control.EndIf
+		F.Data.DataTable.Close("dtTemp")
+
+		F.Intrinsic.String.Build("select gl.Batch as Batch, gl.line as Line, left(ltrim(gl.GL_NUMBER),4) as MainAcct, right(rtrim(gl.GL_NUMBER),3) as SubAcct, gl.post_date_sql as TransDate from v_gl_detail gl where gl.GL_NUMBER = '{2}' and gl.post_date_sql between '{0}' and '{1}' and gl.appl_type = 3 order by gl.post_date_sql, gl.Batch",V.Local.dBegDate.PervasiveDate,V.Local.dEndDate.PervasiveDate,V.DataTable.dtCashAcct(V.Local.i1).Acct!FieldValTrim,V.Local.sSQL)
+		F.Data.DataTable.CreateFromSQL("dtCK","conx",V.Local.sSQL)
+		F.Intrinsic.Control.If(V.DataTable.dtCK.RowCount,>,0)
+			F.Intrinsic.Control.For(V.Local.i2,0,V.DataTable.dtCK.RowCount--,1)
+				'F.Intrinsic.String.Build("select convert(-1*amount_cmpny,sql_float) as Amount, Reference as Reference, invoice_no as Invoice from v_gl_detail where GL_NUMBER = '{0}' and post_date_sql = '{1}' and batch_num = '{2}'",V.Local.sAPGL.Trim,V.DataTable.dtCK(V.Local.i2).TransDate!FieldValPervasiveDate,V.DataTable.dtCK(V.Local.i2).Batch!FieldValTrim,V.Local.sSQL)
+				'changed to GL_AP_CHECK_DETAIL because GL Detail was broken down to this table. AAD
+				F.Intrinsic.String.Build("select convert(-1*amount_cmpny,sql_float) as Amount, Cust_Vendor as Reference, invoice_no as Invoice from V_GL_AP_CHECK_DTL where GL_NUMBER = '{0}' and post_date_sql = '{1}' and batch = '{2}'",V.Local.sAPGL.Trim,V.DataTable.dtCK(V.Local.i2).TransDate!FieldValPervasiveDate,V.DataTable.dtCK(V.Local.i2).Batch!FieldValTrim,V.Local.sSQL)
+				F.Data.DataTable.CreateFromSQL("dtBatch","conx",V.Local.sSQL)
+				F.Intrinsic.Control.For(V.Local.i3,0,V.DataTable.dtBatch.RowCount--,1)
+					F.Intrinsic.String.Build("select discount_invoice as Discount from v_ap_open_items where Vendor = '{0}' and invoice = '{1}' and batch_num = '{2}' and batch_code = '11'",V.DataTable.dtBatch(V.Local.i3).Reference!FieldValTrim,V.DataTable.dtBatch(V.Local.i3).Invoice!FieldValTrim,V.DataTable.dtCK(V.Local.i2).Batch!FieldValTrim,V.Local.sSQL)
+					F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+					F.Intrinsic.Math.Add(V.DataTable.dtBatch(V.Local.i3).Amount!FieldValFloat,V.ODBC.conx!rst.FieldValFloat!Discount,V.Local.fAmount)
+					F.ODBC.conx!rst.Close
+					F.Data.DataTable.AddRow("dtDetail","Batch",V.DataTable.dtCK(V.Local.i2).Batch!FieldValTrim,"MainAcct",V.DataTable.dtCK(V.Local.i2).MainAcct!FieldValTrim,"SubAcct",V.DataTable.dtCK(V.Local.i2).SubAcct!FieldValTrim,"TransDate",V.DataTable.dtCK(V.Local.i2).TransDate!FieldVal,"Amount",V.Local.fAmount,"Reference",V.DataTable.dtBatch(V.Local.i3).Reference!FieldValTrim)
+				F.Intrinsic.Control.Next(V.Local.i3)
+				F.Data.DataTable.Close("dtBatch")
+			F.Intrinsic.Control.Next(V.Local.i2)
+'			F.Data.DataTable.Merge("dtTemp","dtDetail",True,1)
+		F.Intrinsic.Control.EndIf
+		F.Data.DataTable.Close("dtCK")
+	F.Intrinsic.Control.Next(V.Local.i1)
+F.Intrinsic.Control.EndIf
+V.Local.iCheck.Set(V.DataTable.dtDetail.RowCount)
+
+F.Intrinsic.Control.If(V.Local.bCheck,=,True)
+	'Has been exported before, check with the current saved data
+	F.Intrinsic.Control.If(V.DataTable.dtDetail.RowCount,>,0)
+		F.Intrinsic.Control.For(V.Local.i1,V.DataTable.dtDetail.RowCount--,0,-1)
+			F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.i2)
+			F.Intrinsic.Math.Sub(V.Local.i2,V.DataTable.dtDetail.RowCount--,V.Local.i2)
+			F.Intrinsic.UI.ChangeWaitStatus("Checking with the previously exported data",V.Local.i2,1,V.DataTable.dtDetail.RowCount)
+			F.Intrinsic.String.Build("Batch = '{0}'",V.DataTable.dtDetail(V.Local.i1).Batch!FieldValTrim,V.Local.sFilter)
+			F.Data.DataTable.Select("dtSaved",V.Local.sFilter,V.Local.sRet)
+			F.Intrinsic.Control.If(V.Local.sRet,<>,"***NORETURN***")
+				F.Data.DataTable.DeleteRow("dtDetail",V.Local.i1)
+				F.Intrinsic.Math.Sub(V.Local.iCheck,1,V.Local.iCheck)
+			F.Intrinsic.Control.EndIf
+		F.Intrinsic.Control.Next(V.Local.i1)
+		F.Data.DataTable.Merge("dtDetail","dtSaved",True,1)
+		F.Data.DataTable.SaveToXML("dtSaved",0,False,V.Local.sFileName)
+	F.Intrinsic.Control.EndIf
+F.Intrinsic.Control.Else
+	'Directly save it to the folder for storage
+	F.Data.DataTable.Create("dtSaved")
+	F.Data.DataTable.AddColumn("dtSaved","Batch","String")
+	F.Data.DataTable.AddColumn("dtSaved","MainAcct","String")
+	F.Data.DataTable.AddColumn("dtSaved","SubAcct","String")
+	F.Data.DataTable.AddColumn("dtSaved","TransDate","Date")
+	F.Data.DataTable.AddColumn("dtSaved","Amount","Float")
+	F.Data.DataTable.AddColumn("dtSaved","Reference","String")
+	F.Data.DataTable.Merge("dtDetail","dtSaved",False,1)
+	F.Data.DataTable.SaveToXML("dtSaved",0,False,V.Local.sFileName)
+F.Intrinsic.Control.EndIf
+F.Data.DataTable.Close("dtSaved")
+
+'Generating csv files for export if export data exists
+F.Intrinsic.Control.If(V.Local.iCheck,>,0)
+	'Setting up csv file name and save the csv file
+	F.Intrinsic.String.Format(V.Ambient.Date,"YYYYMMDD",V.Local.sFormattedDate)
+	F.Intrinsic.String.Format(V.Ambient.Time,"HHNNSS",V.Local.sFormattedTime)
+	F.Intrinsic.String.Build("{4}\GL_DETAIL_EXPORT\EXCEL\CASH\GLDetail_{0}_{1}_{2}_{3}.xlsx",V.Local.iPeriod,V.Local.iYear,V.Local.sFormattedDate.Trim,V.Local.sFormattedTime.Trim,V.Caller.FilesDir,V.Local.sCSVFilename)
+	F.Data.DataTable.RemoveColumn("dtDetail","Batch")
+	F.Data.DataView.Create("dtDetail","dvDetail",22,"","TransDate ASC")
+	F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtDetail.RowCount--,1)
+		F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.i2)
+		F.Intrinsic.UI.ChangeWaitStatus("Building excel file",V.Local.i2,1,V.DataTable.dtDetail.RowCount)
+		
+		F.Intrinsic.String.Format(V.DataTable.dtDetail!dvDetail(V.Local.i1).TransDate!FieldVal,"MM/Dd/YY",V.Local.sFormattedDate)
+		F.Intrinsic.String.Concat("'",V.Local.sFormattedDate,V.Local.sFormattedDate)
+		F.Intrinsic.String.Format(V.DataTable.dtDetail!dvDetail(V.Local.i1).Amount!FieldValFloat,"0.00",V.Local.sFormattedNumber)
+		F.Intrinsic.String.Build("{0}*!*{1}*!*{2}*!*{3}*!*{4}*!*{5}",V.DataTable.dtDetail!dvDetail(V.Local.i1).MainAcct!FieldValTrim,V.DataTable.dtDetail!dvDetail(V.Local.i1).SubAcct!FieldValTrim,V.Local.sFormattedDate.Trim,V.Local.sFormattedNumber.Trim,"GSS",V.DataTable.dtDetail!dvDetail(V.Local.i1).Reference!FieldValTrim,V.Local.sCSVFilerow)
+		F.Intrinsic.Control.If(V.Local.sCSVFile.Trim,=,"")
+			V.Local.sCSVFile.Set(V.Local.sCSVFilerow)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("{0}$!${1}",V.Local.sCSVFile,V.Local.sCSVFilerow,V.Local.sCSVFile)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.i1)
+	F.Automation.MSExcel.WriteSpreadsheet(V.Local.sCSVFileName, V.Local.sCSVFile)
+	'Format the amount to 0.00
+	F.Automation.MSExcel.CreateAppObject("MSExcel")
+	F.Automation.MSExcel.OpenWorkbook("MSExcel","Excel",V.Local.sCSVFilename)
+	F.Automation.MSExcel.OpenWorksheet("Excel","Sheet",1)
+	F.Intrinsic.Control.For(V.Local.i1,1,V.DataTable.dtDetail.RowCount,1)
+		F.Automation.MSExcel.FormatCell("Sheet",V.Local.i1,4,"0.00")
+	F.Intrinsic.Control.Next(V.Local.i1)
+	F.Automation.MSExcel.SaveWorkbook("Excel")
+	F.Automation.MSExcel.DestroyAllObjects("MSExcel","Excel","Sheet")
+	F.Intrinsic.String.Build("Cash account GL data have been exported to {0}",V.Local.sCSVFilename,V.Local.sRet)
+	F.Intrinsic.UI.Msgbox(V.Local.sRet,"GL Detail Export [APAC]")
+	'Net change for other GL accounts
+	'Preparing the query to exclude cash accounts and AP
+	F.Intrinsic.String.Build("select left(ltrim(GL_NUMBER),4) as MainAcct, right(rtrim(GL_NUMBER),3) as SubAcct, sum(amount_cmpny) as Amount from v_gl_detail where post_date_sql between '{0}' and '{1}'",V.Local.dBegDate.PervasiveDate,V.Local.dEndDate.PervasiveDate,V.Local.sAPGL.Trim,V.Local.sSQL)
+	F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtCashAcct.RowCount--,1)
+		F.Intrinsic.String.Build("{0} and GL_NUMBER <> '{1}'",V.Local.sSQL,V.DataTable.dtCashAcct(V.Local.i1).Acct!FieldValTrim,V.Local.sSQL)
+	F.Intrinsic.Control.Next(V.Local.i1)
+	F.Intrinsic.String.Concat(V.Local.sSQL," group by GL_NUMBER order by GL_NUMBER",V.Local.sSQL)
+	'Create datatable and prepare the csv file
+	F.Data.DataTable.CreateFromSQL("dtNetChg","conx",V.Local.sSQL)
+	V.Local.sCSVFile.Set("")
+	F.Intrinsic.String.Format(V.Local.dEndDate,"MM/Dd/YY",V.Local.sDate)
+	F.Intrinsic.String.Concat("'",V.Local.sDate,V.Local.sDate)
+	F.Intrinsic.String.Build("Net Change between {0} and {1}",V.Local.dBegDate.PervasiveDate,V.Local.dEndDate.PervasiveDate,V.Local.sReference)
+	F.Intrinsic.Control.For(V.Local.i1,0,V.DataTable.dtNetChg.RowCount--,1)
+		F.Intrinsic.Math.Add(V.Local.i1,1,V.Local.i2)
+		F.Intrinsic.UI.ChangeWaitStatus("Building file for net changes",V.Local.i2,1,V.DataTable.dtDetail.RowCount)
+		F.Intrinsic.String.Build("{0}*!*{1}*!*{2}*!*{3}*!*{4}*!*{5}",V.DataTable.dtNetChg(V.Local.i1).MainAcct!FieldValTrim,V.DataTable.dtNetChg(V.Local.i1).SubAcct!FieldValTrim,V.Local.sDate.Trim,V.DataTable.dtNetChg(V.Local.i1).Amount!FieldVal,"GSS",V.Local.sReference,V.Local.sCSVFilerow)
+		F.Intrinsic.Control.If(V.Local.sCSVFile.Trim,=,"")
+			V.Local.sCSVFile.Set(V.Local.sCSVFilerow)
+		F.Intrinsic.Control.Else
+			F.Intrinsic.String.Build("{0}$!${1}",V.Local.sCSVFile,V.Local.sCSVFilerow,V.Local.sCSVFile)
+		F.Intrinsic.Control.EndIf
+	F.Intrinsic.Control.Next(V.Local.i1)
+	F.Intrinsic.String.Build("{2}\GL_DETAIL_EXPORT\EXCEL\NET_CHANGE\GLDetail_{0}_{1}.xlsx",V.Local.iPeriod,V.Local.iYear,V.Caller.FilesDir,V.Local.sCSVFilename)
+	F.Automation.MSExcel.WriteSpreadsheet(V.Local.sCSVFileName, V.Local.sCSVFile)
+	'Format the amount to 0.00
+	F.Automation.MSExcel.CreateAppObject("MSExcel")
+	F.Automation.MSExcel.OpenWorkbook("MSExcel","Excel",V.Local.sCSVFilename)
+	F.Automation.MSExcel.OpenWorksheet("Excel","Sheet",1)
+	F.Intrinsic.Control.For(V.Local.i1,1,V.DataTable.dtNetChg.RowCount,1)
+		F.Automation.MSExcel.FormatCell("Sheet",V.Local.i1,4,"0.00")
+	F.Intrinsic.Control.Next(V.Local.i1)
+	F.Automation.MSExcel.SaveWorkbook("Excel")
+	F.Automation.MSExcel.DestroyAllObjects("MSExcel","Excel","Sheet")
+	F.Intrinsic.String.Build("Net Change have been exported to {0}",V.Local.sCSVFilename,V.Local.sRet)
+	F.Intrinsic.UI.CloseWaitDialog
+	F.Intrinsic.UI.Msgbox(V.Local.sRet,"GL Detail Export [APAC]")
+	F.Data.DataTable.Close("dtNetChg")
+	F.Data.DataTable.Close("dtCashAcct")
+	F.Intrinsic.Control.CallSub(Unload)
+F.Intrinsic.Control.Else
+	'No data to be exported
+	F.Intrinsic.UI.CloseWaitDialog
+	F.Intrinsic.UI.Msgbox("No data to be exported","GL Detail Export [APAC]")
+F.Intrinsic.Control.EndIf
+F.Data.DataTable.Close("dtDetail")
+
+
+Program.Sub.cmdExport_Click.End
+
+Program.Sub.ddlPeriod_Change.Start
+V.Local.iPeriod.Declare
+V.Local.iYear.Declare
+V.Local.sBegDate.Declare
+V.Local.sEndDate.Declare
+V.Local.sPeriod.Declare
+V.Local.sSQL.Declare
+
+V.Local.sSQL.Set(V.Screen.F_PeriodSelect!ddlYear.Text)
+F.Intrinsic.Control.If(V.Local.sSQL.Trim,<>,"")
+	V.Local.iPeriod.Set(V.Screen.F_PeriodSelect!ddlPeriod.Text)
+	V.Local.iYear.Set(V.Screen.F_PeriodSelect!ddlYear.Text)
+	
+	F.Intrinsic.String.LPad(V.Local.iPeriod,"0",2,V.Local.sPeriod)
+	F.Intrinsic.String.Build("select beg_date, end_date from v_gl_calendar where period = '{0}' and start_year = '{1}'",V.Local.sPeriod.Trim,V.Local.iYear,V.Local.sSQL)
+	F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+	F.Intrinsic.String.Format(V.ODBC.conx!rst.FieldVal!beg_date,"D Mmm YYYY",V.Local.sBegDate)
+	F.Intrinsic.String.Format(V.ODBC.conx!rst.FieldVal!end_date,"D Mmm YYYY",V.Local.sEndDate)
+	F.Intrinsic.String.Build("{0} - {1}",V.Local.sBegDate,V.Local.sEndDate,V.Local.sPeriod)
+	Gui.F_PeriodSelect.lblPeriod.Caption(V.Local.sPeriod)
+	F.ODBC.conx!rst.Close
+F.Intrinsic.Control.EndIf
+Program.Sub.ddlPeriod_Change.End
+
+Program.Sub.ddlYear_Change.Start
+V.Local.iPeriod.Declare
+V.Local.iYear.Declare
+V.Local.sBegDate.Declare
+V.Local.sEndDate.Declare
+V.Local.sPeriod.Declare
+V.Local.sSQL.Declare
+
+V.Local.iPeriod.Set(V.Screen.F_PeriodSelect!ddlPeriod.Text)
+V.Local.iYear.Set(V.Screen.F_PeriodSelect!ddlYear.Text)
+
+F.Intrinsic.String.LPad(V.Local.iPeriod,"0",2,V.Local.sPeriod)
+F.Intrinsic.String.Build("select beg_date, end_date from v_gl_calendar where period = '{0}' and start_year = '{1}'",V.Local.sPeriod.Trim,V.Local.iYear,V.Local.sSQL)
+F.ODBC.Connection!conx.OpenLocalRecordsetRO("rst",V.Local.sSQL)
+F.Intrinsic.String.Format(V.ODBC.conx!rst.FieldVal!beg_date,"D Mmm YYYY",V.Local.sBegDate)
+F.Intrinsic.String.Format(V.ODBC.conx!rst.FieldVal!end_date,"D Mmm YYYY",V.Local.sEndDate)
+F.Intrinsic.String.Build("{0} - {1}",V.Local.sBegDate,V.Local.sEndDate,V.Local.sPeriod)
+Gui.F_PeriodSelect.lblPeriod.Caption(V.Local.sPeriod)
+F.ODBC.conx!rst.Close
+Program.Sub.ddlYear_Change.End
+
+Program.Sub.Comments.Start
+${$0$}$GL Detail Export for Huffman Welding$}$MHERTANTO$}$27/6/2017 9:04:04 PM$}$False
+${$3$}$0$}$$}$0$}$-1$}$$}$12:00:00 AM$}$This program is to be used by warehouse staff to process issue request made by production staffs. The request is submitted through another interface (GAB_4360_MATERIAL_REQUEST.g2u)
+${$5$}$2.0.0.0$}$2
+${$6$}$adsouza$}$20210325103318306$}$JX3L09Cgehg7O+lKYSb2ur8FFsJUp9u/KK796rXXYsDZVHf+qgw/bhFEuGuGGcKMiqvXIDdEQTo=
+Program.Sub.Comments.End
